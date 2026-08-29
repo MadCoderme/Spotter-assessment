@@ -14,20 +14,6 @@ import pandas as pd
 warnings.filterwarnings('ignore')
 
 
-def resolve_path(filename: str) -> str:
-    """Dynamically resolves file paths across Kaggle and local development environments."""
-    possible_locations = [
-        os.path.join('data', filename),
-        os.path.join('/kaggle/input/datasets/abrarfairujraiyan/spotter-data/data', filename),
-        os.path.join('/kaggle/input/spotter-data/data', filename),
-        filename
-    ]
-    for path in possible_locations:
-        if os.path.exists(path):
-            return path
-    raise FileNotFoundError(f"Required input file '{filename}' was not found.")
-
-
 def engineer_features(all_data: pd.DataFrame) -> pd.DataFrame:
     """
     Cleans, imputes, and engineers physical, directional, and temporal features across combined data.
@@ -101,9 +87,9 @@ def run_data_preparation():
     print("=" * 65)
 
     # 1. Ingest Raw Datasets
-    train_file = resolve_path('train_test.csv' if os.path.exists(resolve_path('train_test.csv')) else 'train-test.csv')
-    val_file = resolve_path('validation.csv')
-    dec_file = resolve_path('december_chart_inputs.csv' if os.path.exists(resolve_path('december_chart_inputs.csv')) else 'december-chart-inputs.csv')
+    train_file = 'data/train-test.csv'
+    val_file = 'data/validation.csv'
+    dec_file = 'data/december-chart-inputs.csv'
 
     print(f"Loading Raw Datasets:\n  • Train: {train_file}\n  • Val  : {val_file}\n  • Dec  : {dec_file}")
 

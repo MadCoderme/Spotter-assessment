@@ -27,18 +27,20 @@ def log_step(step_num: int, total_steps: int, title: str):
     print("=" * 75)
 
 
-def resolve_input_path(filename: str) -> str:
+def resolve_input_path(possible_names: list) -> str:
     """Dynamically resolves file paths across Kaggle and local development environments."""
-    possible_locations = [
-        os.path.join('data', filename),
-        os.path.join('/kaggle/input/datasets/abrarfairujraiyan/spotter-data/data', filename),
-        os.path.join('/kaggle/input/spotter-data/data', filename),
-        filename
+    search_dirs = [
+        'data',
+        '/kaggle/input/datasets/abrarfairujraiyan/spotter-data/data',
+        '/kaggle/input/spotter-data/data',
+        '.'
     ]
-    for path in possible_locations:
-        if os.path.exists(path):
-            return path
-    raise FileNotFoundError(f"Could not locate required input file: {filename}")
+    for d in search_dirs:
+        for name in possible_names:
+            path = os.path.join(d, name)
+            if os.path.exists(path):
+                return path
+    raise FileNotFoundError(f"Could not locate any of: {possible_names}")
 
 
 def main():
@@ -50,10 +52,10 @@ def main():
     # -------------------------------------------------------------------------
     log_step(1, TOTAL_STEPS, "DATA INGESTION & ENVIRONMENT AUDIT")
     
-    train_file = resolve_input_path('train_test.csv' if os.path.exists(resolve_input_path('train_test.csv')) else 'train-test.csv')
-    val_file = resolve_input_path('validation.csv')
-    dec_file = resolve_input_path('december_chart_inputs.csv' if os.path.exists(resolve_input_path('december_chart_inputs.csv')) else 'december-chart-inputs.csv')
-    val_template_file = resolve_input_path('validation_predictions_template.csv' if os.path.exists(resolve_input_path('validation_predictions_template.csv')) else 'validation-predictions-template.csv')
+    train_file = resolve_input_path(['train-test.csv', 'train_test.csv'])
+    val_file = resolve_input_path(['validation.csv'])
+    dec_file = resolve_input_path(['december-chart-inputs.csv', 'december_chart_inputs.csv'])
+    val_template_file = resolve_input_path(['validation-predictions-template.csv', 'validation_predictions_template.csv'])
 
     print(f"  [+] Training Dataset      : {train_file}")
     print(f"  [+] Validation Dataset    : {val_file}")
@@ -103,8 +105,7 @@ def main():
     all_data['market_index'] = all_data.groupby('date')['market_index'].transform(lambda s: s.ffill().bfill())
     all_data['market_index'] = all_data['market_index'].ffill().bfill().fillna(1.0)
 
-    lane_series = all_data['pickup'].astype(str) + "_to_" + all_data['delivery'].astype(str)
-    all_data['lane'] = lane_series
+    all_data['lane'] = all_data['pickup'].astype(str) + "_to_" + all_data['delivery'].astype(str)
     lane_quote_map = all_data.dropna(subset=['quote_signal']).groupby('lane')['quote_signal'].median().to_dict()
     global_quote_median = all_data['quote_signal'].median()
     all_data['quote_signal'] = all_data['quote_signal'].fillna(all_data['lane'].map(lane_quote_map)).fillna(global_quote_median)
@@ -141,16 +142,16 @@ def main():
     for col in cat_cols:
         all_data[col] = all_data[col].astype(str)
 
-    # Separate back into clean partitions
-    train_clean = all_data[all_data['__split'] == 'train'].drop(columns=['__split']).copy()
-    val_clean = all_data[all_data['__split'] == 'val'].drop(columns=['__split']).copy()
-    dec_clean = all_data[all_data['__split'] == 'dec'].drop(columns=['__split']).copy()
+    # Separate back into clean partitions AND RESET INDICES to avoid pandas alignment bugs
+    train_clean = all_data[all_data['__split'] == 'train'].drop(columns=['__split']).reset_index(drop=True)
+    val_clean = all_data[all_data['__split'] == 'val'].drop(columns=['__split']).reset_index(drop=True)
+    dec_clean = all_data[all_data['__split'] == 'dec'].drop(columns=['__split']).reset_index(drop=True)
 
     # 3.1 Training Label Noise Filtration
     train_clean['multiplier'] = train_clean['posted_rate'] / train_clean['base_rate_dq']
     clean_mask = (train_clean['multiplier'] >= 0.5) & (train_clean['multiplier'] <= 2.5)
     dropped_anomalies = (~clean_mask).sum()
-    train_clean = train_clean[clean_mask].copy()
+    train_clean = train_clean[clean_mask].reset_index(drop=True)
     train_clean['target_multiplier'] = train_clean['posted_rate'] / train_clean['base_rate_dq']
 
     print(f"  [✓] Filtered {dropped_anomalies} synthetic 3x/5x label corruptions from training set.")
@@ -232,13 +233,10 @@ def main():
     plt.ylabel('Feature', fontsize=11)
     plt.tight_layout()
     
-    feat_img_path = 'feature_importance.png'
+    feat_img_path = 'output/feature_importance.png'
     plt.savefig(feat_img_path, bbox_inches='tight')
     plt.close()
     print(f"  [✓] Rendered and saved feature importance chart to: {feat_img_path}")
-    print(f"      Top 3 Drivers: 1. {importance_df.iloc[0]['Feature']} ({importance_df.iloc[0]['Importance']:.1f}%), "
-          f"2. {importance_df.iloc[1]['Feature']} ({importance_df.iloc[1]['Importance']:.1f}%), "
-          f"3. {importance_df.iloc[2]['Feature']} ({importance_df.iloc[2]['Importance']:.1f}%)")
 
     # -------------------------------------------------------------------------
     # STEP 6: FULL-DATASET RETRAINING
@@ -266,24 +264,25 @@ def main():
     # -------------------------------------------------------------------------
     log_step(7, TOTAL_STEPS, "INFERENCE & FINAL ASSET EXPORT")
 
-    # 7.1 Validation Set Predictions
+    # 7.1 Validation Set Predictions (Using .values to guarantee zero index mismatch)
     val_pred_multipliers = cat_final.predict(val_clean[features])
-    val_dollar_preds = val_pred_multipliers * val_clean['base_rate_dq']
+    val_dollar_preds = val_pred_multipliers * val_clean['base_rate_dq'].values
     val_template['predicted_rate'] = val_dollar_preds
 
-    out_val_csv = 'validation_predictions.csv'
+    out_val_csv = 'output/validation_predictions.csv'
     val_template[['load_id', 'predicted_rate']].to_csv(out_val_csv, index=False)
     print(f"  [✓] Generated: {out_val_csv} ({len(val_template):,} rows)")
 
     # 7.2 December Benchmark Predictions
     dec_pred_multipliers = cat_final.predict(dec_clean[features])
-    dec_dollar_preds = dec_pred_multipliers * dec_clean['base_rate_dq']
+    dec_dollar_preds = dec_pred_multipliers * dec_clean['base_rate_dq'].values
 
-    # Preserve exact original 7-column schema for score.py
+    # Preserve exact original schema for score.py
     dec_export_df = pd.read_csv(dec_file)
     dec_export_df['predicted_rate'] = dec_dollar_preds
 
-    out_dec_csv = 'data/december_chart_inputs.csv' if os.path.exists('data') else 'december_chart_inputs.csv'
+    # Write back to wherever the original December file was located
+    out_dec_csv = dec_file if os.path.exists(dec_file) else 'data/december_chart_inputs.csv'
     os.makedirs(os.path.dirname(out_dec_csv), exist_ok=True) if os.path.dirname(out_dec_csv) else None
     dec_export_df.to_csv(out_dec_csv, index=False)
     print(f"  [✓] Generated: {out_dec_csv} ({len(dec_export_df):,} rows)")
