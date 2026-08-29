@@ -1,11 +1,11 @@
-# Freight Rate Prediction Challenge — ML Engineer Assessment
+# Freight Rate Prediction — ML Engineer Assessment
 
 [![Python 3.10+](https://img.shields.io/badge/python-3.10+-blue.svg)](https://www.python.org/downloads/)
 [![CatBoost](https://img.shields.io/badge/model-CatBoost-orange.svg)](https://catboost.ai/)
 [![Validation MAE](https://img.shields.io/badge/OOT%20MAE-$66.14-green.svg)]()
 [![Validation R2](https://img.shields.io/badge/OOT%20R2-0.9773-brightgreen.svg)]()
 
-> **Candidate:** Machine Learning Engineer  
+> **Candidate:** Abrar Fairuj Raiyan 
 > **Loom Video Walkthrough:** [Watch 2-3 Minute Overview on Loom](https://www.loom.com/share/9ad85344b8694929a2051b9653458cec)
 
 ---
@@ -40,10 +40,7 @@ Standard randomized $K$-Fold cross-validation was rejected due to **temporal dat
 An error audit revealed that standard models suffered from spatial over-smoothing on transcontinental East-to-West hauls (e.g., applying regional Northeast discounts to $3{,}000$-mile hauls from Albany to LA).
 
 **The Solution:**
-1. Optimized a **CatBoost Regressor** using MAE loss directly on the dimensionless target multiplier:
-   $$
-   \hat{y}_i = \hat{z}_i \times (\text{distance}_i \times \text{quote\_signal}_i)
-   $$
+1. Optimized a **CatBoost Regressor** using MAE loss directly on the dimensionless target multiplier: $\hat{y}_i = \hat{z}_i \times (\text{distance}_i \times \text{quote\_signal}_i)$
 2. Engineered directional vectors (`delta_lat`, `delta_lon`, `compass_bearing`, `is_transcon`) and interaction terms (`dist_x_pickup_lat`, `dist_x_delivery_lat`) to prevent short-haul origin penalties from collapsing long-haul rates.
 
 ---
@@ -84,8 +81,8 @@ Clone the repository and install the required dependencies:
 
 ```bash
 # Clone repository
-git clone <your-repo-url>
-cd <your-repo-name>
+git clone https://github.com/madcoderme/Spotter-assessment.git
+cd Spotter-assessment
 
 # Create and activate virtual environment (optional but recommended)
 python -m venv venv
