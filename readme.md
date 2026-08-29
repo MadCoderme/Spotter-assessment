@@ -40,7 +40,10 @@ Standard randomized $K$-Fold cross-validation was rejected due to **temporal dat
 An error audit revealed that standard models suffered from spatial over-smoothing on transcontinental East-to-West hauls (e.g., applying regional Northeast discounts to $3{,}000$-mile hauls from Albany to LA).
 
 **The Solution:**
-1. Optimized a **CatBoost Regressor** using MAE loss directly on the dimensionless target multiplier: $\hat{y}_i = \hat{z}_i \times (\text{distance}_i \times \text{quote\_signal}_i)$
+1. Optimized a **CatBoost Regressor** using MAE loss directly on the dimensionless target multiplier: 
+$$
+\hat{y}_i = \hat{z}_i \times (\text{distance}_i \times \text{quote\_signal}_i)
+$$
 2. Engineered directional vectors (`delta_lat`, `delta_lon`, `compass_bearing`, `is_transcon`) and interaction terms (`dist_x_pickup_lat`, `dist_x_delivery_lat`) to prevent short-haul origin penalties from collapsing long-haul rates.
 
 ---
@@ -97,11 +100,8 @@ pip install -r requirements.txt
 You can run the pipeline sequentially:
 
 ```bash
-# Step 1: Preprocess data and engineer features
-python prepare_data.py
-
-# Step 2: Train CatBoost Multiplier model, evaluate OOT performance, and export predictions
-python train_and_predict.py
+# Prepare data, train CatBoost Multiplier model, evaluate OOT performance, and export predictions
+python train.py
 ```
 
 ### 3. Run Assessment Scorer
